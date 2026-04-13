@@ -210,7 +210,7 @@ flowchart LR
         FS_INGEST["POST /feed/ingest"]
     end
 
-    subgraph ES["❤️ Engagement :8084"]
+    subgraph ES[" Engagement :8084"]
         ES_API["REST API"]
     end
 
@@ -411,13 +411,13 @@ When John opens his feed:
 
 ---
 
-## 6. ❤️ Engagement Flow (Likes, Comments, Shares)
+## 6. Engagement Flow (Likes, Comments, Shares)
 
 ```mermaid
 sequenceDiagram
     actor User
     participant GW as 🔀 API Gateway
-    participant ES as ❤️ Engagement Service
+    participant ES as  Engagement Service
     participant EF as 🏭 EngagementFactory
     participant CFC as 🧹 ContentFilterChain
     participant PS as 📝 Post Service
@@ -1249,7 +1249,7 @@ classDiagram
 
 ---
 
-### 8.5 ❤️ Engagement Service — Class Diagram (Port 8084)
+### 8.5  Engagement Service — Class Diagram (Port 8084)
 
 > Manages likes, comments, and shares. **Patterns: Factory (EngagementFactory), Decorator (ContentFilterChain)**
 
