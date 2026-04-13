@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.4.4</version>
+		<relativePath/>
+	</parent>
+
+	<groupId>com.instagram</groupId>
+	<artifactId>instagram-lld</artifactId>
+	<version>1.0.0</version>
+	<packaging>pom</packaging>
+	<name>Instagram LLD - Microservice Architecture</name>
+	<description>Production-grade Low-Level Design for Instagram using microservices</description>
+
+	<properties>
+		<java.version>17</java.version>
+		<maven.compiler.source>17</maven.compiler.source>
+		<maven.compiler.target>17</maven.compiler.target>
+	</properties>
+
+	<modules>
+		<module>common</module>
+		<module>user-service</module>
+		<module>post-service</module>
+		<module>feed-service</module>
+		<module>engagement-service</module>
+		<module>search-service</module>
+		<module>notification-service</module>
+		<module>api-gateway</module>
+	</modules>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>com.instagram</groupId>
+				<artifactId>common</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+</project>
