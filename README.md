@@ -75,7 +75,7 @@ flowchart TB
             FS_R["FeedRepository<br/>(Feed Cache)"]
         end
 
-        subgraph ENGAGE_SVC["❤️ Engagement Service :8084"]
+        subgraph ENGAGE_SVC["Engagement Service :8084"]
             ES_C["EngagementController"]
             ES_S["EngagementService"]
             ES_F["EngagementFactory"]
