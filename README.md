@@ -552,7 +552,7 @@ Root
 
 ---
 
-## 8. 🎨 Design Patterns Deep Dive
+## 8. 🎨 Design Patterns & Detailed Class Diagrams
 
 ### All 7 Patterns — Where & Why
 
@@ -603,93 +603,1048 @@ mindmap
                 Logging
 ```
 
-### Class Diagram — Key Interfaces
+---
+
+### 8.1 📦 Common Module — Class Diagram (Shared Library)
+
+> Shared JAR dependency used by all 7 microservices. Contains DTOs, enums, events, and exceptions. **No Spring Boot — pure Java.**
 
 ```mermaid
 classDiagram
+    direction TB
+
+    namespace Enums {
+        class MediaType {
+            <<enumeration>>
+            PHOTO
+            VIDEO
+            CAROUSEL
+        }
+
+        class PostStatus {
+            <<enumeration>>
+            DRAFT
+            PUBLISHED
+            ARCHIVED
+            DELETED
+        }
+
+        class UserRole {
+            <<enumeration>>
+            NORMAL
+            CELEBRITY
+            VERIFIED
+            BUSINESS
+        }
+
+        class EngagementType {
+            <<enumeration>>
+            LIKE
+            COMMENT
+            SHARE
+        }
+
+        class NotificationType {
+            <<enumeration>>
+            LIKE
+            COMMENT
+            FOLLOW
+            MENTION
+        }
+    }
+
+    namespace RequestDTOs {
+        class CreateUserRequest {
+            -String username
+            -String email
+            -String fullName
+            -String bio
+            +getUsername() String
+            +getEmail() String
+            +getFullName() String
+            +getBio() String
+        }
+
+        class CreatePostRequest {
+            -String userId
+            -String caption
+            -List~MediaItem~ mediaItems
+            +getUserId() String
+            +getCaption() String
+            +getMediaItems() List
+        }
+
+        class CreatePostRequest_MediaItem {
+            -String url
+            -MediaType mediaType
+            -int width
+            -int height
+            +getUrl() String
+            +getMediaType() MediaType
+        }
+
+        class CreateCommentRequest {
+            -String userId
+            -String postId
+            -String content
+            -String parentCommentId
+            +getUserId() String
+            +getContent() String
+        }
+    }
+
+    namespace ResponseDTOs {
+        class UserProfileResponse {
+            -String userId
+            -String username
+            -String email
+            -String fullName
+            -String bio
+            -String profilePictureUrl
+            -long followerCount
+            -long followingCount
+            -long postCount
+            -Instant createdAt
+        }
+
+        class PostResponse {
+            -String postId
+            -String userId
+            -String caption
+            -List~String~ hashtags
+            -PostStatus status
+            -List~MediaItem~ media
+            -long likeCount
+            -long commentCount
+            -long shareCount
+            -Instant createdAt
+        }
+
+        class FeedResponse {
+            -String userId
+            -List~PostResponse~ posts
+            -int page
+            -int size
+            -boolean hasNext
+        }
+
+        class CommentResponse {
+            -String commentId
+            -String postId
+            -String userId
+            -String content
+            -String parentCommentId
+            -Instant createdAt
+        }
+
+        class SearchResponse {
+            -String query
+            -String type
+            -List~UserProfileResponse~ users
+            -List~HashtagResult~ hashtags
+            -int totalResults
+        }
+    }
+
+    namespace Events {
+        class PostCreatedEvent {
+            -String postId
+            -String userId
+            -String caption
+            -long authorFollowerCount
+            -Instant timestamp
+        }
+
+        class PostDeletedEvent {
+            -String postId
+            -String userId
+        }
+
+        class EngagementEvent {
+            -String userId
+            -String postId
+            -String postOwnerId
+            -EngagementType type
+            -String content
+        }
+
+        class UserFollowedEvent {
+            -String followerId
+            -String followeeId
+        }
+    }
+
+    namespace Exceptions {
+        class ResourceNotFoundException {
+            -String resourceType
+            -String resourceId
+            +ResourceNotFoundException(type, id)
+        }
+
+        class DuplicateResourceException {
+            -String resourceType
+            -String identifier
+        }
+
+        class UnauthorizedException {
+            -String message
+        }
+    }
+
+    CreatePostRequest --> CreatePostRequest_MediaItem
+    CreatePostRequest_MediaItem --> MediaType
+    PostResponse --> PostStatus
+    EngagementEvent --> EngagementType
+```
+
+---
+
+### 8.2 👤 User Service — Class Diagram (Port 8081)
+
+> Manages user registration, profiles, social graph (follow/unfollow), and celebrity detection. **Pattern: Interface Segregation (ISP)** — `UserService` and `FollowService` are separate interfaces.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class UserController {
+        -UserService userService
+        -FollowService followService
+        +registerUser(CreateUserRequest) ResponseEntity
+        +getUserById(String userId) ResponseEntity
+        +updateProfile(String userId, CreateUserRequest) ResponseEntity
+        +followUser(String followeeId, String followerId) ResponseEntity
+        +unfollowUser(String followeeId, String followerId) ResponseEntity
+        +getFollowers(String userId) ResponseEntity
+        +getFollowing(String userId) ResponseEntity
+        +getFollowerIds(String userId) ResponseEntity
+        +getFollowingIds(String userId) ResponseEntity
+        +isCelebrity(String userId) ResponseEntity
+        +searchUsers(String query) ResponseEntity
+        +incrementPostCount(String userId) ResponseEntity
+    }
+
     class UserService {
         <<interface>>
-        +registerUser(request) UserProfileResponse
-        +getUserById(userId) UserProfileResponse
-        +isCelebrity(userId) boolean
-        +searchUsers(query) List
+        +registerUser(CreateUserRequest) UserProfileResponse
+        +getUserById(String userId) UserProfileResponse
+        +updateProfile(String userId, CreateUserRequest) UserProfileResponse
+        +searchUsers(String query) List~UserProfileResponse~
+        +isCelebrity(String userId) boolean
+        +incrementPostCount(String userId)
     }
 
     class FollowService {
         <<interface>>
+        +followUser(String followerId, String followeeId)
+        +unfollowUser(String followerId, String followeeId)
+        +getFollowers(String userId) List~UserProfileResponse~
+        +getFollowing(String userId) List~UserProfileResponse~
+        +getFollowerIds(String userId) Set~String~
+        +getFollowingIds(String userId) Set~String~
+    }
+
+    class UserServiceImpl {
+        -UserRepository userRepository
+        -long CELEBRITY_THRESHOLD = 100_000
+        +registerUser(request) UserProfileResponse
+        +getUserById(userId) UserProfileResponse
+        +updateProfile(userId, request) UserProfileResponse
+        +searchUsers(query) List~UserProfileResponse~
+        +isCelebrity(userId) boolean
+        +incrementPostCount(userId)
+        -toResponse(User) UserProfileResponse
+    }
+
+    class FollowServiceImpl {
+        -FollowRepository followRepository
+        -UserRepository userRepository
         +followUser(followerId, followeeId)
         +unfollowUser(followerId, followeeId)
-        +getFollowers(userId) Set~String~
-        +getFollowing(userId) Set~String~
+        +getFollowers(userId) List~UserProfileResponse~
+        +getFollowing(userId) List~UserProfileResponse~
+        +getFollowerIds(userId) Set~String~
+        +getFollowingIds(userId) Set~String~
+    }
+
+    class User {
+        -String id
+        -String username
+        -String email
+        -String fullName
+        -String bio
+        -String profilePictureUrl
+        -UserRole role
+        -AtomicLong followerCount
+        -AtomicLong followingCount
+        -AtomicLong postCount
+        -Instant createdAt
+        +incrementFollowerCount()
+        +decrementFollowerCount()
+        +incrementFollowingCount()
+        +decrementFollowingCount()
+        +incrementPostCount()
+    }
+
+    class FollowRelation {
+        -String id
+        -String followerId
+        -String followeeId
+        -double engagementScore
+        -Instant createdAt
+    }
+
+    class UserRepository {
+        -Map~String, User~ usersById
+        -Map~String, User~ usersByUsername
+        -Map~String, User~ usersByEmail
+        +save(User) User
+        +findById(String) Optional~User~
+        +findByUsername(String) Optional~User~
+        +findByEmail(String) Optional~User~
+        +existsByUsername(String) boolean
+        +existsByEmail(String) boolean
+        +searchByUsernamePrefix(String) List~User~
+    }
+
+    class FollowRepository {
+        -Map~String, Set~String~~ followersByUserId
+        -Map~String, Set~String~~ followingByUserId
+        -Map~String, FollowRelation~ followRelations
+        +save(FollowRelation) FollowRelation
+        +delete(String followerId, String followeeId)
+        +exists(String followerId, String followeeId) boolean
+        +getFollowerIds(String userId) Set~String~
+        +getFollowingIds(String userId) Set~String~
+    }
+
+    class UserServiceConfig {
+        -long celebrityThreshold
+        +getCelebrityThreshold() long
+    }
+
+    class UserExceptionHandler {
+        +handleNotFound(ResourceNotFoundException) ResponseEntity
+        +handleDuplicate(DuplicateResourceException) ResponseEntity
+    }
+
+    UserController --> UserService
+    UserController --> FollowService
+    UserService <|.. UserServiceImpl : implements
+    FollowService <|.. FollowServiceImpl : implements
+    UserServiceImpl --> UserRepository
+    FollowServiceImpl --> FollowRepository
+    FollowServiceImpl --> UserRepository
+    UserRepository --> User
+    FollowRepository --> FollowRelation
+    User --> UserRole
+    UserServiceImpl ..> UserServiceConfig
+```
+
+---
+
+### 8.3 📝 Post Service — Class Diagram (Port 8082)
+
+> Manages post creation, media metadata, and hashtag extraction. **Patterns: Builder (Post), Observer (PostEventPublisher/Listener)**
+
+```mermaid
+classDiagram
+    direction TB
+
+    class PostController {
+        -PostService postService
+        -MediaService mediaService
+        +createPost(CreatePostRequest) ResponseEntity
+        +getPost(String postId) ResponseEntity
+        +deletePost(String postId, String userId) ResponseEntity
+        +getUserPosts(String userId, int page, int size) ResponseEntity
+        +getPresignedUrl(String fileName, String contentType) ResponseEntity
+        +incrementLikeCount(String postId) ResponseEntity
+        +decrementLikeCount(String postId) ResponseEntity
+        +incrementCommentCount(String postId) ResponseEntity
+        +incrementShareCount(String postId) ResponseEntity
     }
 
     class PostService {
         <<interface>>
+        +createPost(CreatePostRequest) PostResponse
+        +getPostById(String postId) PostResponse
+        +getPostsByUserId(String userId, int page, int size) List~PostResponse~
+        +deletePost(String postId, String userId)
+        +incrementLikeCount(String postId)
+        +decrementLikeCount(String postId)
+        +incrementCommentCount(String postId)
+        +incrementShareCount(String postId)
+    }
+
+    class MediaService {
+        <<interface>>
+        +generatePresignedUrl(String fileName, String contentType) String
+    }
+
+    class PostServiceImpl {
+        -PostRepository postRepository
+        -MediaRepository mediaRepository
+        -HashtagRepository hashtagRepository
+        -PostEventPublisher eventPublisher
+        -RestClient restClient
+        -String userServiceUrl
+        -Pattern HASHTAG_PATTERN
         +createPost(request) PostResponse
         +getPostById(postId) PostResponse
+        +getPostsByUserId(userId, page, size) List
         +deletePost(postId, userId)
         +incrementLikeCount(postId)
+        -extractHashtags(String caption) List~String~
+        -toResponse(Post) PostResponse
+    }
+
+    class MediaServiceImpl {
+        -String SIMULATED_CDN_BASE
+        +generatePresignedUrl(fileName, contentType) String
+    }
+
+    class Post {
+        -String id
+        -String userId
+        -String caption
+        -List~Media~ mediaList
+        -List~String~ hashtags
+        -PostStatus status
+        -AtomicLong likeCount
+        -AtomicLong commentCount
+        -AtomicLong shareCount
+        -Instant createdAt
+        +incrementLikeCount()
+        +decrementLikeCount()
+        +incrementCommentCount()
+        +incrementShareCount()
+    }
+
+    class Post_Builder {
+        <<static inner class>>
+        -String id
+        -String userId
+        -String caption
+        -List~Media~ mediaList
+        -List~String~ hashtags
+        -PostStatus status
+        +Builder(String id, String userId)
+        +caption(String) Builder
+        +addMedia(Media) Builder
+        +mediaList(List~Media~) Builder
+        +hashtags(List~String~) Builder
+        +status(PostStatus) Builder
+        +build() Post
+    }
+
+    class Media {
+        -String id
+        -String postId
+        -String url
+        -MediaType mediaType
+        -int order
+        -int width
+        -int height
+    }
+
+    class Hashtag {
+        -String id
+        -String tag
+        -AtomicLong postCount
+        -Instant createdAt
+        +incrementPostCount()
+    }
+
+    class PostEventPublisher {
+        -List~PostEventListener~ listeners
+        +registerListener(PostEventListener)
+        +unregisterListener(PostEventListener)
+        +publishPostCreated(PostCreatedEvent)
+        +publishPostDeleted(PostDeletedEvent)
+    }
+
+    class PostEventListener {
+        <<interface>>
+        +onPostCreated(PostCreatedEvent)
+        +onPostDeleted(PostDeletedEvent)
+    }
+
+    class PostEventNotifier {
+        -PostEventPublisher publisher
+        -RestClient restClient
+        -String feedServiceUrl
+        -String searchServiceUrl
+        +init()
+        +onPostCreated(PostCreatedEvent)
+        +onPostDeleted(PostDeletedEvent)
+    }
+
+    class PostRepository {
+        -Map~String, Post~ postsById
+        -Map~String, List~String~~ postIdsByUserId
+        +save(Post) Post
+        +findById(String) Optional~Post~
+        +findByUserId(String) List~Post~
+        +findByUserIdPaginated(String, int, int) List~Post~
+        +deleteById(String)
+    }
+
+    class MediaRepository {
+        -Map~String, Media~ mediaById
+        -Map~String, List~Media~~ mediaByPostId
+        +save(Media) Media
+        +findByPostId(String) List~Media~
+    }
+
+    class HashtagRepository {
+        -Map~String, Hashtag~ hashtagsById
+        -Map~String, Hashtag~ hashtagsByTag
+        +save(Hashtag) Hashtag
+        +findByTag(String) Optional~Hashtag~
+        +getOrCreate(String tag, String id) Hashtag
+        +searchByPrefix(String) List~Hashtag~
+    }
+
+    class PostServiceConfig {
+        -int maxMediaPerPost = 10
+        -int maxCaptionLength = 2200
+        -int maxHashtagsPerPost = 30
+    }
+
+    class PostExceptionHandler {
+        +handleNotFound(ResourceNotFoundException) ResponseEntity
+        +handleUnauthorized(UnauthorizedException) ResponseEntity
+    }
+
+    PostController --> PostService
+    PostController --> MediaService
+    PostService <|.. PostServiceImpl : implements
+    MediaService <|.. MediaServiceImpl : implements
+    PostServiceImpl --> PostRepository
+    PostServiceImpl --> MediaRepository
+    PostServiceImpl --> HashtagRepository
+    PostServiceImpl --> PostEventPublisher
+    PostEventPublisher --> PostEventListener
+    PostEventListener <|.. PostEventNotifier : implements
+    PostEventNotifier --> PostEventPublisher : registers with
+    PostRepository --> Post
+    MediaRepository --> Media
+    HashtagRepository --> Hashtag
+    Post *-- Post_Builder : creates via
+    Post --> Media
+    Post --> PostStatus
+    Media --> MediaType
+
+    note for Post_Builder "Builder Pattern:\nnew Post.Builder(id, userId)\n  .caption('...')\n  .addMedia(m1)\n  .hashtags(tags)\n  .build()"
+    note for PostEventPublisher "Observer Pattern:\nPublishes events to all\nregistered listeners\n(FeedService, SearchService)"
+```
+
+---
+
+### 8.4 📰 Feed Service — Class Diagram (Port 8083)
+
+> Generates personalized feeds using hybrid push/pull strategy. **Pattern: Strategy** — `FanOutOnWriteStrategy` for normal users, `FanOutOnReadStrategy` for celebrities.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class FeedController {
+        -FeedService feedService
+        +getFeed(String userId, int page, int size) ResponseEntity~FeedResponse~
+        +ingestPost(PostCreatedEvent event) ResponseEntity
     }
 
     class FeedService {
         <<interface>>
+        +getFeed(String userId, int page, int size) FeedResponse
+        +handleNewPost(PostCreatedEvent event)
+    }
+
+    class FeedServiceImpl {
+        -FanOutOnWriteStrategy fanOutOnWriteStrategy
+        -FanOutOnReadStrategy fanOutOnReadStrategy
+        -UserServiceClient userServiceClient
+        -PostServiceClient postServiceClient
+        -long celebrityThreshold = 100_000
         +getFeed(userId, page, size) FeedResponse
         +handleNewPost(event)
     }
 
     class FeedGenerationStrategy {
         <<interface>>
-        +distributePost(event, followers)
+        +distributePost(PostCreatedEvent event, Set~String~ followerIds)
+        +getFeed(String userId, Set~String~ following, int page, int size) List~FeedItem~
+        +getStrategyName() String
+    }
+
+    class FanOutOnWriteStrategy {
+        -FeedRepository feedRepository
+        +distributePost(event, followerIds)
         +getFeed(userId, following, page, size) List~FeedItem~
         +getStrategyName() String
     }
 
+    class FanOutOnReadStrategy {
+        -PostServiceClient postServiceClient
+        -Map~String, List~FeedItem~~ celebrityTimelines
+        +distributePost(event, followerIds)
+        +getFeed(userId, followedCelebrities, page, size) List~FeedItem~
+        +getStrategyName() String
+    }
+
+    class FeedItem {
+        -String postId
+        -String authorId
+        -Instant timestamp
+        -double score
+    }
+
+    class FeedRepository {
+        -Map~String, Deque~FeedItem~~ feedCache
+        -int MAX_FEED_SIZE = 1000
+        +pushToFeed(String userId, FeedItem item)
+        +getFeed(String userId, int page, int size) List~FeedItem~
+        +removeFromFeed(String userId, String postId)
+        +getFeedSize(String userId) int
+    }
+
+    class UserServiceClient {
+        -RestClient restClient
+        -String userServiceUrl
+        +getFollowerIds(String userId) Set~String~
+        +getFollowingIds(String userId) Set~String~
+        +isCelebrity(String userId) boolean
+    }
+
+    class PostServiceClient {
+        -RestClient restClient
+        -String postServiceUrl
+        +getPost(String postId) PostResponse
+    }
+
+    class FeedServiceConfig {
+        -long celebrityThreshold = 100_000
+        -int defaultPageSize = 20
+        -int maxFeedSize = 1000
+    }
+
+    FeedController --> FeedService
+    FeedService <|.. FeedServiceImpl : implements
+    FeedGenerationStrategy <|.. FanOutOnWriteStrategy : implements
+    FeedGenerationStrategy <|.. FanOutOnReadStrategy : implements
+    FeedServiceImpl --> FanOutOnWriteStrategy : normal users
+    FeedServiceImpl --> FanOutOnReadStrategy : celebrities
+    FeedServiceImpl --> UserServiceClient : REST
+    FeedServiceImpl --> PostServiceClient : REST
+    FanOutOnWriteStrategy --> FeedRepository
+    FanOutOnReadStrategy --> PostServiceClient
+    FeedRepository --> FeedItem
+
+    note for FeedServiceImpl "Strategy Selection:\nif (followerCount >= 100K)\n  → FanOutOnReadStrategy\nelse\n  → FanOutOnWriteStrategy\n\nFeed = merge(push, pull)\n       → deduplicate\n       → sort by time"
+    note for FanOutOnWriteStrategy "PUSH MODEL:\nOn post creation:\n  LPUSH to every\n  follower's feed cache\n\n✅ Fast reads\n⚠️ High write cost"
+    note for FanOutOnReadStrategy "PULL MODEL:\nOn post creation:\n  Store in celebrity timeline\nOn feed read:\n  Dynamically merge\n\n✅ No write amplification\n⚠️ Slower reads"
+```
+
+---
+
+### 8.5 ❤️ Engagement Service — Class Diagram (Port 8084)
+
+> Manages likes, comments, and shares. **Patterns: Factory (EngagementFactory), Decorator (ContentFilterChain)**
+
+```mermaid
+classDiagram
+    direction TB
+
+    class EngagementController {
+        -EngagementService engagementService
+        +likePost(String postId, String userId) ResponseEntity
+        +unlikePost(String postId, String userId) ResponseEntity
+        +addComment(String postId, CreateCommentRequest) ResponseEntity~CommentResponse~
+        +getComments(String postId, int page, int size) ResponseEntity
+        +sharePost(String postId, String userId, String sharedToUserId) ResponseEntity
+    }
+
     class EngagementService {
         <<interface>>
+        +likePost(String userId, String postId)
+        +unlikePost(String userId, String postId)
+        +addComment(CreateCommentRequest) CommentResponse
+        +getComments(String postId, int page, int size) List~CommentResponse~
+        +sharePost(String userId, String postId, String sharedToUserId)
+    }
+
+    class EngagementServiceImpl {
+        -LikeRepository likeRepository
+        -CommentRepository commentRepository
+        -ShareRepository shareRepository
+        -EngagementFactory engagementFactory
+        -ContentFilterChain contentFilterChain
+        -RestClient restClient
+        -String postServiceUrl
+        -String notificationServiceUrl
         +likePost(userId, postId)
         +unlikePost(userId, postId)
         +addComment(request) CommentResponse
-        +sharePost(userId, postId, target)
+        +getComments(postId, page, size) List
+        +sharePost(userId, postId, sharedToUserId)
+        -notifyPostService(postId, action)
+        -toCommentResponse(Comment) CommentResponse
+    }
+
+    class EngagementFactory {
+        <<Factory Pattern>>
+        +createLike(String userId, String postId) Like
+        +createComment(String userId, String postId, String content, String parentId) Comment
+        +createShare(String userId, String postId, String sharedToUserId) Share
+        +resolveType(String action) EngagementType
+    }
+
+    class ContentFilter {
+        <<interface - Decorator>>
+        +filter(String content) String
+    }
+
+    class ProfanityFilter {
+        -Set~String~ BLOCKED_WORDS
+        +filter(String content) String
+    }
+
+    class SpamFilter {
+        -Pattern EXCESSIVE_LINKS
+        -Pattern REPEATED_CHARS
+        -int MAX_LENGTH = 2200
+        +filter(String content) String
+    }
+
+    class ContentFilterChain {
+        -List~ContentFilter~ filters
+        +apply(String content) String
+    }
+
+    class Like {
+        -String id
+        -String userId
+        -String postId
+        -Instant createdAt
+    }
+
+    class Comment {
+        -String id
+        -String postId
+        -String userId
+        -String content
+        -String parentCommentId
+        -Instant createdAt
+    }
+
+    class Share {
+        -String id
+        -String userId
+        -String postId
+        -String sharedToUserId
+        -Instant createdAt
+    }
+
+    class LikeRepository {
+        -Map~String, Like~ likesById
+        -Map~String, Set~String~~ likesByPostId
+        -Map~String, Like~ likeByUserPost
+        +save(Like) Like
+        +delete(String userId, String postId)
+        +exists(String userId, String postId) boolean
+        +countByPostId(String postId) long
+    }
+
+    class CommentRepository {
+        -Map~String, Comment~ commentsById
+        -Map~String, List~Comment~~ commentsByPostId
+        +save(Comment) Comment
+        +findById(String) Optional~Comment~
+        +findByPostId(String) List~Comment~
+        +findByPostIdPaginated(String, int, int) List~Comment~
+        +countByPostId(String) long
+    }
+
+    class ShareRepository {
+        -Map~String, Share~ sharesById
+        -Map~String, List~Share~~ sharesByPostId
+        +save(Share) Share
+        +countByPostId(String) long
+    }
+
+    EngagementController --> EngagementService
+    EngagementService <|.. EngagementServiceImpl : implements
+    EngagementServiceImpl --> EngagementFactory : creates objects
+    EngagementServiceImpl --> ContentFilterChain : filters comments
+    EngagementServiceImpl --> LikeRepository
+    EngagementServiceImpl --> CommentRepository
+    EngagementServiceImpl --> ShareRepository
+    ContentFilterChain --> ContentFilter : chains 1..*
+    ContentFilter <|.. ProfanityFilter : implements
+    ContentFilter <|.. SpamFilter : implements
+    EngagementFactory ..> Like : creates
+    EngagementFactory ..> Comment : creates
+    EngagementFactory ..> Share : creates
+    LikeRepository --> Like
+    CommentRepository --> Comment
+    ShareRepository --> Share
+
+    note for EngagementFactory "Factory Pattern:\nCentralizes object creation\nEncapsulates UUID generation\nEasy to add new types\n(e.g., Reaction, Bookmark)"
+    note for ContentFilterChain "Decorator Pattern:\nRaw → ProfanityFilter → SpamFilter → Clean\nEach filter wraps the next\nNew filters added without\nmodifying existing ones"
+```
+
+---
+
+### 8.6 🔍 Search Service — Class Diagram (Port 8085)
+
+> Full-text and autocomplete search using custom data structures. **Data Structures: Trie (prefix search), Inverted Index (full-text AND search)**
+
+```mermaid
+classDiagram
+    direction TB
+
+    class SearchController {
+        -SearchService searchService
+        +searchUsers(String q, int limit) ResponseEntity~SearchResponse~
+        +searchHashtags(String q, int limit) ResponseEntity~SearchResponse~
+        +searchPosts(String q, int limit) ResponseEntity~SearchResponse~
+        +indexContent(PostCreatedEvent event) ResponseEntity
     }
 
     class SearchService {
         <<interface>>
+        +searchUsers(String query, int limit) SearchResponse
+        +searchHashtags(String query, int limit) SearchResponse
+        +searchPosts(String query, int limit) SearchResponse
+        +indexPost(String postId, String userId, String caption)
+        +indexUser(String userId, String username)
+        +removePost(String postId)
+    }
+
+    class SearchServiceImpl {
+        -SearchIndexManager indexManager
         +searchUsers(query, limit) SearchResponse
         +searchHashtags(query, limit) SearchResponse
         +searchPosts(query, limit) SearchResponse
         +indexPost(postId, userId, caption)
+        +indexUser(userId, username)
+        +removePost(postId)
     }
 
-    class ContentFilter {
+    class SearchIndexManager {
+        <<Singleton Coordinator>>
+        -TrieIndex userIndex
+        -TrieIndex hashtagIndex
+        -InvertedIndex postIndex
+        -Map~String, PostIndexEntry~ postMetadata
+        +indexUser(String userId, String username, double score)
+        +indexPost(String postId, String userId, String caption)
+        +removePost(String postId)
+        +getUserIndex() TrieIndex
+        +getHashtagIndex() TrieIndex
+        +getPostIndex() InvertedIndex
+    }
+
+    class TrieIndex {
+        -TrieNode root
+        +insert(String term, String id, double score)
+        +searchByPrefix(String prefix, int limit) List~IndexEntry~
+        +remove(String term, String id)
+        -collectEntries(TrieNode, List)
+    }
+
+    class TrieNode {
+        <<private inner class>>
+        -Map~Character, TrieNode~ children
+        -boolean isEnd
+        -List~IndexEntry~ entries
+    }
+
+    class IndexEntry {
+        <<record>>
+        +String id
+        +String originalTerm
+        +double score
+    }
+
+    class InvertedIndex {
+        -Map~String, Set~String~~ index
+        -Map~String, Set~String~~ reverseIndex
+        +indexDocument(String postId, String content)
+        +search(String query) Set~String~
+        +removeDocument(String postId)
+        -tokenize(String content) Set~String~
+    }
+
+    class PostIndexEntry {
+        <<record>>
+        +String postId
+        +String userId
+        +String caption
+    }
+
+    SearchController --> SearchService
+    SearchService <|.. SearchServiceImpl : implements
+    SearchServiceImpl --> SearchIndexManager
+    SearchIndexManager --> TrieIndex : userIndex
+    SearchIndexManager --> TrieIndex : hashtagIndex
+    SearchIndexManager --> InvertedIndex : postIndex
+    SearchIndexManager --> PostIndexEntry
+    TrieIndex --> TrieNode
+    TrieNode --> IndexEntry
+
+    note for TrieIndex "Trie: O(L) prefix search\nwhere L = query length\n\nUsed for:\n• Username autocomplete\n• Hashtag autocomplete"
+    note for InvertedIndex "Inverted Index:\ntoken → Set of postIds\n\nSearch uses AND semantics:\n'golden hour' matches posts\ncontaining BOTH words"
+```
+
+---
+
+### 8.7 🔔 Notification Service — Class Diagram (Port 8086)
+
+> Event-driven notification management. **Pattern: Factory (NotificationFactory)** for creating typed notifications.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class NotificationController {
+        -NotificationService notificationService
+        +getNotifications(String userId, int page, int size) ResponseEntity
+        +markAsRead(String notificationId) ResponseEntity
+        +getUnreadCount(String userId) ResponseEntity
+        +ingestEngagement(EngagementEvent event) ResponseEntity
+        +ingestFollow(UserFollowedEvent event) ResponseEntity
+    }
+
+    class NotificationService {
         <<interface>>
-        +filter(content) String
+        +getNotifications(String userId, int page, int size) List~Notification~
+        +markAsRead(String notificationId)
+        +getUnreadCount(String userId) long
+        +handleEngagementEvent(EngagementEvent event)
+        +handleFollowEvent(UserFollowedEvent event)
     }
 
-    class PostEventListener {
-        <<interface>>
-        +onPostCreated(event)
-        +onPostDeleted(event)
+    class NotificationServiceImpl {
+        -NotificationRepository notificationRepository
+        -NotificationFactory notificationFactory
+        +getNotifications(userId, page, size) List~Notification~
+        +markAsRead(notificationId)
+        +getUnreadCount(userId) long
+        +handleEngagementEvent(event)
+        +handleFollowEvent(event)
     }
 
-    UserService <|.. UserServiceImpl
-    FollowService <|.. FollowServiceImpl
-    PostService <|.. PostServiceImpl
-    FeedService <|.. FeedServiceImpl
-    FeedGenerationStrategy <|.. FanOutOnWriteStrategy
-    FeedGenerationStrategy <|.. FanOutOnReadStrategy
-    EngagementService <|.. EngagementServiceImpl
-    SearchService <|.. SearchServiceImpl
-    ContentFilter <|.. ProfanityFilter
-    ContentFilter <|.. SpamFilter
-    PostEventListener <|.. PostEventNotifier
+    class NotificationFactory {
+        <<Factory Pattern>>
+        +createLikeNotification(String userId, String actorId, String postId) Notification
+        +createCommentNotification(String userId, String actorId, String postId, String preview) Notification
+        +createFollowNotification(String userId, String actorId) Notification
+        +createMentionNotification(String userId, String actorId, String postId) Notification
+    }
 
-    FeedServiceImpl --> FanOutOnWriteStrategy
-    FeedServiceImpl --> FanOutOnReadStrategy
-    EngagementServiceImpl --> EngagementFactory
-    EngagementServiceImpl --> ContentFilterChain
-    ContentFilterChain --> ContentFilter
-    PostServiceImpl --> PostEventPublisher
-    PostEventPublisher --> PostEventListener
+    class Notification {
+        -String id
+        -String userId
+        -String actorId
+        -NotificationType type
+        -String referenceId
+        -String message
+        -boolean read
+        -Instant createdAt
+        +isRead() boolean
+        +setRead(boolean)
+    }
+
+    class NotificationRepository {
+        -Map~String, Notification~ notificationsById
+        -Map~String, List~Notification~~ notificationsByUserId
+        +save(Notification) Notification
+        +findByUserId(String, int page, int size) List~Notification~
+        +findById(String) Optional~Notification~
+        +countUnreadByUserId(String) long
+    }
+
+    NotificationController --> NotificationService
+    NotificationService <|.. NotificationServiceImpl : implements
+    NotificationServiceImpl --> NotificationRepository
+    NotificationServiceImpl --> NotificationFactory : creates notifications
+    NotificationFactory ..> Notification : creates
+    NotificationRepository --> Notification
+    Notification --> NotificationType
+
+    note for NotificationFactory "Factory Pattern:\nCentralizes notification creation\nFormats messages consistently\nEach type has specific message:\n• LIKE: 'X liked your post'\n• COMMENT: 'X commented: ...'\n• FOLLOW: 'X started following you'"
+```
+
+---
+
+### 8.8 🔀 API Gateway — Class Diagram (Port 8080)
+
+> Single entry point for all client requests. **Patterns: Facade (unified API), Chain of Responsibility (filter pipeline)**
+
+```mermaid
+classDiagram
+    direction TB
+
+    class ApiGatewayApplication {
+        +main(String[] args)
+    }
+
+    class GatewayController {
+        <<Facade Pattern>>
+        -ServiceRegistryConfig registry
+        -RestClient restClient
+        +proxyUserService(request, body) ResponseEntity
+        +proxyPostService(request, body) ResponseEntity
+        +proxyFeedService(request, body) ResponseEntity
+        +proxySearchService(request, body) ResponseEntity
+        +proxyNotificationService(request, body) ResponseEntity
+        +health() ResponseEntity
+        -proxy(String baseUrl, HttpServletRequest, String body, String contentType) ResponseEntity
+    }
+
+    class ServiceRegistryConfig {
+        -String userServiceUrl
+        -String postServiceUrl
+        -String feedServiceUrl
+        -String engagementServiceUrl
+        -String searchServiceUrl
+        -String notificationServiceUrl
+        +getUserServiceUrl() String
+        +getPostServiceUrl() String
+        +getFeedServiceUrl() String
+        +getEngagementServiceUrl() String
+        +getSearchServiceUrl() String
+        +getNotificationServiceUrl() String
+    }
+
+    class Filter {
+        <<interface - jakarta.servlet>>
+        +doFilter(ServletRequest, ServletResponse, FilterChain)
+    }
+
+    class RateLimitFilter {
+        <<Order 1>>
+        -int MAX_REQUESTS_PER_MINUTE = 100
+        -Map~String, AtomicInteger~ requestCounts
+        -long currentMinute
+        +doFilter(request, response, chain)
+    }
+
+    class RequestLoggingFilter {
+        <<Order 2>>
+        +doFilter(request, response, chain)
+    }
+
+    Filter <|.. RateLimitFilter : implements
+    Filter <|.. RequestLoggingFilter : implements
+    GatewayController --> ServiceRegistryConfig
+    ApiGatewayApplication ..> GatewayController
+
+    note for GatewayController "Facade Pattern:\nClients interact with\na single URL (port 8080)\nGateway proxies to correct\ndownstream service"
+    note for RateLimitFilter "Token Bucket Algorithm:\n100 requests/minute per IP\nResets counter each minute\nReturns HTTP 429 when exceeded\n\nProduction: Redis-backed"
 ```
 
 ---
