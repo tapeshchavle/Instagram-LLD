@@ -104,4 +104,10 @@ public class UserController {
     public ResponseEntity<List<UserProfileResponse>> searchUsers(@RequestParam String q) {
         return ResponseEntity.ok(userService.searchUsers(q));
     }
+
+    //for the testing purpose
+    @GetMapping("/hi")
+    public String hi(){
+        return "Hello from user-service";
+    }
 }
