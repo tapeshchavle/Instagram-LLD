@@ -1,4 +1,4 @@
-# 📸 Instagram — Production-Grade Low-Level Design ((Microservice Architecture))
+ # 📸 Instagram — Production-Grade Low-Level Design ((Microservice Architecture))
 
 > A **SOLID-compliant, design-pattern-driven** Low-Level Design for Instagram, built as **7 independently scalable Spring Boot microservices** + an API Gateway. Every service owns its bounded context, communicates via REST, and can be deployed/scaled independently.
 
